@@ -1,4 +1,5 @@
 import streamlit as st
+from streamlit.components.v1 import html
 import zipfile
 import io
 
@@ -144,88 +145,130 @@ if 'original_script' in st.session_state:
     - For bulk processing, upload a ZIP file with your scripts.
     """)
 
-# Custom JavaScript for keyboard shortcuts and right-click menu
-st.markdown("""
-<script>
-    // Define enhancement actions with keyboard shortcuts
-    const enhancementActions = {
-        'Ctrl+P': 'pause',
-        'Ctrl+E': 'emphasize',
-        'Ctrl+M': 'emotion',
-        'Ctrl+Q': 'question',
-        'Ctrl+T': 'quote'
+# JavaScript code to handle context menu, text selection, and keyboard shortcuts
+js_code = """
+// Function to show selected text
+function showSelectedText() {
+    var selectedText = '';
+    if (window.getSelection) {
+        selectedText = window.getSelection().toString();
+    } else if (document.getSelection) {
+        selectedText = document.getSelection().toString();
+    } else if (document.selection) {
+        selectedText = document.selection.createRange().text;
+    } else return;
+    document.getElementById('selectedTextArea').value = selectedText;
+}
+
+// Function to handle context menu
+document.addEventListener('contextmenu', function (e) {
+    e.preventDefault();
+    const menu = document.getElementById('contextMenu');
+    const selectedText = window.getSelection().toString();
+    if (selectedText) {
+        menu.style.display = 'block';
+        menu.style.left = e.pageX + 'px';
+        menu.style.top = e.pageY + 'px';
+        menu.dataset.selectedText = selectedText;
+    }
+});
+
+document.addEventListener('click', function () {
+    document.getElementById('contextMenu').style.display = 'none';
+});
+
+document.getElementById('contextMenu').addEventListener('click', function (e) {
+    const action = e.target.dataset.action;
+    if (action) {
+        const selectedText = this.dataset.selectedText;
+        const enhancedText = {
+            'pause': selectedText + '...',
+            'emphasize': '"' + selectedText.toUpperCase() + '"',
+            'emotion': '**' + selectedText + '**',
+            'question': selectedText + '?',
+            'quote': '"' + selectedText + '"'
+        }[action];
+        document.body.innerHTML = document.body.innerHTML.replace(selectedText, enhancedText);
+        this.style.display = 'none';
+    }
+});
+
+// Keyboard shortcuts
+document.addEventListener('keydown', function (e) {
+    const shortcuts = {
+        'P': 'pause',
+        'E': 'emphasize',
+        'M': 'emotion',
+        'Q': 'question',
+        'T': 'quote'
     };
-
-    function applyEnhancement(action, text) {
-        const textarea = document.querySelector('[data-testid="stTextArea"]');
-        const selectionStart = textarea.selectionStart;
-        const selectionEnd = textarea.selectionEnd;
-        const selectedText = textarea.value.substring(selectionStart, selectionEnd);
-
-        if (selectedText) {
-            const enhancedText = {
-                'pause': selectedText + '...',
-                'emphasize': '"' + selectedText.toUpperCase() + '"',
-                'emotion': '**' + selectedText + '**',
-                'question': selectedText + '?',
-                'quote': '"' + selectedText + '"'
-            }[action];
-            
-            textarea.value = textarea.value.substring(0, selectionStart) + enhancedText + textarea.value.substring(selectionEnd);
-            textarea.dispatchEvent(new Event('input'));
-        }
+    if (e.ctrlKey && shortcuts[e.key.toUpperCase()]) {
+        e.preventDefault();
+        const action = shortcuts[e.key.toUpperCase()];
+        const selectedText = window.getSelection().toString();
+        const enhancedText = {
+            'pause': selectedText + '...',
+            'emphasize': '"' + selectedText.toUpperCase() + '"',
+            'emotion': '**' + selectedText + '**',
+            'question': selectedText + '?',
+            'quote': '"' + selectedText + '"'
+        }[action];
+        document.body.innerHTML = document.body.innerHTML.replace(selectedText, enhancedText);
     }
+});
+"""
 
-    document.addEventListener('keydown', function(event) {
-        const keyCombo = `${event.ctrlKey ? 'Ctrl+' : ''}${event.key.toUpperCase()}`;
-        if (enhancementActions[keyCombo]) {
-            event.preventDefault();
-            applyEnhancement(enhancementActions[keyCombo], document.getSelection().toString());
-        }
-    });
-
-    document.addEventListener('contextmenu', function(event) {
-        event.preventDefault();
-        var contextMenu = document.createElement('div');
-        contextMenu.style.position = 'fixed';
-        contextMenu.style.top = `${event.clientY}px`;
-        contextMenu.style.left = `${event.clientX}px`;
-        contextMenu.style.backgroundColor = '#ffffff';
-        contextMenu.style.border = '1px solid #ccc';
-        contextMenu.style.padding = '10px';
-        contextMenu.style.boxShadow = '0px 0px 10px rgba(0, 0, 0, 0.1)';
-        
-        const enhancementButtons = Object.keys(enhancementActions).map(keyCombo => {
-            const action = enhancementActions[keyCombo];
-            return `<button onclick="applyEnhancement('${action}', document.getSelection().toString())">${action.charAt(0).toUpperCase() + action.slice(1)}</button>`;
-        }).join('<br/>');
-
-        contextMenu.innerHTML = enhancementButtons;
-        document.body.appendChild(contextMenu);
-
-        document.addEventListener('click', function() {
-            contextMenu.remove();
-        }, { once: true });
-    });
-
-    function applyEnhancement(action, text) {
-        const textarea = document.querySelector('[data-testid="stTextArea"]');
-        const selectionStart = textarea.selectionStart;
-        const selectionEnd = textarea.selectionEnd;
-        const selectedText = textarea.value.substring(selectionStart, selectionEnd);
-
-        if (selectedText) {
-            const enhancedText = {
-                'pause': selectedText + '...',
-                'emphasize': '"' + selectedText.toUpperCase() + '"',
-                'emotion': '**' + selectedText + '**',
-                'question': selectedText + '?',
-                'quote': '"' + selectedText + '"'
-            }[action];
-            
-            textarea.value = textarea.value.substring(0, selectionStart) + enhancedText + textarea.value.substring(selectionEnd);
-            textarea.dispatchEvent(new Event('input'));
-        }
-    }
-</script>
+# Wrap the JavaScript as HTML code
+html_code = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        .context-menu {{
+            position: absolute;
+            text-align: center;
+            background: lightgray;
+            border: 1px solid black;
+            display: none;
+            z-index: 1000;
+        }}
+        .context-menu ul {{
+            padding: 0;
+            margin: 0;
+            min-width: 150px;
+            list-style: none;
+        }}
+        .context-menu ul li {{
+            padding: 7px;
+            border-bottom: 1px solid black;
+        }}
+        .context-menu ul li:last-child {{
+            border-bottom: none;
+        }}
+        .context-menu ul li a {{
+            text-decoration: none;
+            color: black;
+            display: block;
+        }}
+        .context-menu ul li:hover {{
+            background: darkgray;
+        }}
+    </style>
+</head>
+<body>
+    <h1>Enhanced Text Handling Example</h1>
+    <p>Select any part of this text and use the context menu or keyboard shortcuts.</p>
+    <textarea id="selectedTextArea" rows="5" cols="50" readonly></textarea>
+    <div id="contextMenu" class="context-menu">
+        <ul>
+            <li><a href="#" data-action="pause">Pause</a></li>
+            <li><a href="#" data-action="emphasize">Emphasize</a></li>
+            <li><a href="#" data-action="emotion">Emotion</a></li>
+            <li><a href="#" data-action="question">Question</a></li>
+            <li><a href="#" data-action="quote">Quote</a></li>
+        </ul>
+    </div>
+    <script>{js_code}</script>
+</body>
+</html>
 """, unsafe_allow_html=True)
