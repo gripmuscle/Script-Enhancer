@@ -37,7 +37,114 @@ st.set_page_config(page_title="Interactive Script Enhancer", layout="wide")
 
 st.title("Interactive Script Enhancer")
 
+# Sidebar for Upload & Enhance
 st.sidebar.header("Upload & Enhance")
 
-# Upload or input single script
-upload_option = st.sidebar
+# Select mode: single or bulk
+mode = st.sidebar.selectbox("Select Mode", ["Single File / Text", "Bulk Processing"])
+
+if mode == "Single File / Text":
+    upload_option = st.sidebar.selectbox("Upload or Input Script", ["Upload File", "Input Text"])
+
+    if upload_option == "Upload File":
+        uploaded_file = st.sidebar.file_uploader("Upload your script file (.txt)", type="txt")
+        if uploaded_file:
+            script = uploaded_file.read().decode("utf-8")
+            st.session_state.original_script = script  # Save original script for reference
+    elif upload_option == "Input Text":
+        script = st.sidebar.text_area("Input your script text here:")
+        if script:
+            st.session_state.original_script = script  # Save original script for reference
+
+    if 'original_script' in st.session_state:
+        st.sidebar.subheader("Enhancement Options")
+
+        # Store enhancements in session state
+        if 'enhancements' not in st.session_state:
+            st.session_state.enhancements = []
+
+        # Define enhancement types
+        enhancement_types = ['Pause', 'Emphasize', 'Exclamation', 'Question', 'Quote']
+
+        # Enhancement options
+        col1, col2 = st.columns([2, 2])
+
+        with col1:
+            st.subheader("Select Text Enhancements")
+            enhancement_action = st.selectbox("Choose enhancement type:", enhancement_types)
+            selected_text = st.text_input(f"Text to {enhancement_action.lower()}:")
+            
+            if st.button(f"Add {enhancement_action}"):
+                if selected_text:
+                    action_map = {
+                        "Pause": "pause",
+                        "Emphasize": "emphasize",
+                        "Exclamation": "exclamation",
+                        "Question": "question",
+                        "Quote": "quote"
+                    }
+                    st.session_state.enhancements.append({"action": action_map[enhancement_action], "text": selected_text})
+        
+        with col2:
+            st.subheader("Current Enhancements")
+            enhancements_list = [f'{e["action"].capitalize()} on "{e["text"]}"' for e in st.session_state.enhancements]
+            if enhancements_list:
+                st.write("\n".join(enhancements_list))
+            else:
+                st.write("No enhancements added yet.")
+
+        st.subheader("Enhance and Download")
+
+        if st.button("Apply Enhancements"):
+            if 'original_script' in st.session_state:
+                enhanced_script = apply_enhancements(st.session_state.original_script, st.session_state.enhancements)
+                
+                # Store the enhanced script in session state
+                st.session_state.enhanced_script = enhanced_script
+                
+                st.subheader("Enhanced Script")
+                st.text_area("Enhanced Script", enhanced_script, height=300, key="enhanced_script_display")
+
+                # Provide download option for a single file
+                st.download_button(
+                    label="Download Enhanced Script",
+                    data=enhanced_script,
+                    file_name="enhanced_script.txt",
+                    mime="text/plain"
+                )
+
+elif mode == "Bulk Processing":
+    st.sidebar.subheader("Upload ZIP of Script Files")
+    bulk_file = st.sidebar.file_uploader("Upload ZIP file", type="zip")
+    if bulk_file:
+        with zipfile.ZipFile(bulk_file, 'r') as zip_ref:
+            file_dict = {name: zip_ref.read(name).decode('utf-8') for name in zip_ref.namelist()}
+        
+        # Apply enhancements
+        if 'enhancements' in st.session_state:
+            enhanced_files = {}
+            for file_name, content in file_dict.items():
+                enhanced_script = apply_enhancements(content, st.session_state.enhancements)
+                enhanced_files[file_name] = enhanced_script
+
+            if st.button("Download All Enhanced Scripts as ZIP"):
+                zip_buffer = create_zip_file(enhanced_files)
+                st.download_button(
+                    label="Download Enhanced Scripts ZIP",
+                    data=zip_buffer,
+                    file_name="enhanced_scripts.zip",
+                    mime="application/zip"
+                )
+
+st.markdown("""
+### Enhancement Types:
+- **Pause**: Adds `...` after the selected text.
+- **Emphasize**: Capitalizes and surrounds the text with `""`.
+- **Exclamation**: Capitalizes and adds `!` after the text.
+- **Question**: Adds `?` after the selected text.
+- **Quote**: Surrounds the text with `"`.
+
+### Notes:
+- Select the text and apply the desired enhancement using the buttons.
+- For bulk processing, upload a ZIP file with your scripts.
+""")
