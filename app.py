@@ -271,4 +271,4 @@ html_code = f"""
     <script>{js_code}</script>
 </body>
 </html>
-""", unsafe_allow_html=True
+"""
