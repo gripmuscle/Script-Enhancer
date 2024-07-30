@@ -2,7 +2,6 @@ import streamlit as st
 import zipfile
 import io
 
-@st.cache_data
 def apply_enhancements(script, enhancements):
     """
     Apply text enhancements based on the given list of enhancements.
@@ -80,7 +79,7 @@ if 'original_script' in st.session_state:
                     "Quote": "quote"
                 }
                 st.session_state.enhancements.append({"action": action_map[enhancement_action], "text": selected_text})
-    
+
     with col2:
         st.subheader("Current Enhancements")
         enhancements_list = [f'{e["action"].capitalize()} on "{e["text"]}"' for e in st.session_state.enhancements]
@@ -89,22 +88,23 @@ if 'original_script' in st.session_state:
         else:
             st.write("No enhancements added yet.")
 
-    st.subheader("Enhance and Download")
+    st.subheader("Real-time Enhanced Script")
 
+    # Real-time editing
+    enhanced_script = apply_enhancements(st.session_state.original_script, st.session_state.enhancements)
+    real_time_script = st.text_area("Enhanced Script", value=enhanced_script, height=300, key="enhanced_script_display")
+
+    # Apply button
     if st.button("Apply Enhancements"):
         if 'original_script' in st.session_state:
-            enhanced_script = apply_enhancements(st.session_state.original_script, st.session_state.enhancements)
-            
-            # Store the enhanced script in session state
-            st.session_state.enhanced_script = enhanced_script
-            
+            st.session_state.enhanced_script = real_time_script
             st.subheader("Enhanced Script")
-            st.text_area("Enhanced Script", enhanced_script, height=300, key="enhanced_script_display")
+            st.text_area("Enhanced Script", real_time_script, height=300, key="enhanced_script_display")
 
             # Provide download option for a single file
             st.download_button(
                 label="Download Enhanced Script",
-                data=enhanced_script,
+                data=real_time_script,
                 file_name="enhanced_script.txt",
                 mime="text/plain"
             )
@@ -143,3 +143,89 @@ if 'original_script' in st.session_state:
     - The current enhancements applied will be displayed in the right column.
     - For bulk processing, upload a ZIP file with your scripts.
     """)
+
+# Custom JavaScript for keyboard shortcuts and right-click menu
+st.markdown("""
+<script>
+    // Define enhancement actions with keyboard shortcuts
+    const enhancementActions = {
+        'Ctrl+P': 'pause',
+        'Ctrl+E': 'emphasize',
+        'Ctrl+M': 'emotion',
+        'Ctrl+Q': 'question',
+        'Ctrl+T': 'quote'
+    };
+
+    function applyEnhancement(action, text) {
+        const textarea = document.querySelector('[data-testid="stTextArea"]');
+        const selectionStart = textarea.selectionStart;
+        const selectionEnd = textarea.selectionEnd;
+        const selectedText = textarea.value.substring(selectionStart, selectionEnd);
+
+        if (selectedText) {
+            const enhancedText = {
+                'pause': selectedText + '...',
+                'emphasize': '"' + selectedText.toUpperCase() + '"',
+                'emotion': '**' + selectedText + '**',
+                'question': selectedText + '?',
+                'quote': '"' + selectedText + '"'
+            }[action];
+            
+            textarea.value = textarea.value.substring(0, selectionStart) + enhancedText + textarea.value.substring(selectionEnd);
+            textarea.dispatchEvent(new Event('input'));
+        }
+    }
+
+    document.addEventListener('keydown', function(event) {
+        const keyCombo = `${event.ctrlKey ? 'Ctrl+' : ''}${event.key.toUpperCase()}`;
+        if (enhancementActions[keyCombo]) {
+            event.preventDefault();
+            applyEnhancement(enhancementActions[keyCombo], document.getSelection().toString());
+        }
+    });
+
+    document.addEventListener('contextmenu', function(event) {
+        event.preventDefault();
+        var contextMenu = document.createElement('div');
+        contextMenu.style.position = 'fixed';
+        contextMenu.style.top = `${event.clientY}px`;
+        contextMenu.style.left = `${event.clientX}px`;
+        contextMenu.style.backgroundColor = '#ffffff';
+        contextMenu.style.border = '1px solid #ccc';
+        contextMenu.style.padding = '10px';
+        contextMenu.style.boxShadow = '0px 0px 10px rgba(0, 0, 0, 0.1)';
+        
+        const enhancementButtons = Object.keys(enhancementActions).map(keyCombo => {
+            const action = enhancementActions[keyCombo];
+            return `<button onclick="applyEnhancement('${action}', document.getSelection().toString())">${action.charAt(0).toUpperCase() + action.slice(1)}</button>`;
+        }).join('<br/>');
+
+        contextMenu.innerHTML = enhancementButtons;
+        document.body.appendChild(contextMenu);
+
+        document.addEventListener('click', function() {
+            contextMenu.remove();
+        }, { once: true });
+    });
+
+    function applyEnhancement(action, text) {
+        const textarea = document.querySelector('[data-testid="stTextArea"]');
+        const selectionStart = textarea.selectionStart;
+        const selectionEnd = textarea.selectionEnd;
+        const selectedText = textarea.value.substring(selectionStart, selectionEnd);
+
+        if (selectedText) {
+            const enhancedText = {
+                'pause': selectedText + '...',
+                'emphasize': '"' + selectedText.toUpperCase() + '"',
+                'emotion': '**' + selectedText + '**',
+                'question': selectedText + '?',
+                'quote': '"' + selectedText + '"'
+            }[action];
+            
+            textarea.value = textarea.value.substring(0, selectionStart) + enhancedText + textarea.value.substring(selectionEnd);
+            textarea.dispatchEvent(new Event('input'));
+        }
+    }
+</script>
+""", unsafe_allow_html=True)
